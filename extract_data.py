@@ -17,8 +17,6 @@ def build_per_filter_features(df: pd.DataFrame, band: str, features: pd.DataFram
     df_local["Flux_err"] = pd.to_numeric(df_local["Flux_err"], errors="coerce")
 
     x = df_local[df_local["Filter"] == band].copy()
-
-    # Om bandet saknas helt: lägg till NaN-kolumner (om de inte finns) och returnera
     if x.empty:
         for c in [
             f"n_obs_{band}", f"t_span_{band}", f"mean_flux_{band}", f"std_flux_{band}",
@@ -51,17 +49,10 @@ def build_per_filter_features(df: pd.DataFrame, band: str, features: pd.DataFram
          .rename(columns={"snr": f"mean_snr_{band}"})
     )
 
-    x_nonan = x.dropna(subset=["Flux"])
-    if x_nonan.empty:
-        peak = agg[["object_id"]].copy()
-        peak[f"t_peak_{band}"] = np.nan
-        peak[f"flux_peak_{band}"] = np.nan
-    else:
-        peak_idx = x_nonan.groupby("object_id")["Flux"].idxmax()
-        peak = (
-            x_nonan.loc[peak_idx, ["object_id", "Time (MJD)", "Flux"]]
-                  .rename(columns={"Time (MJD)": f"t_peak_{band}", "Flux": f"flux_peak_{band}"})
-        )
+    x.fillna(0, inplace=True)
+    peak = agg[["object_id"]].copy()
+    peak[f"t_peak_{band}"] = np.nan
+    peak[f"flux_peak_{band}"] = np.nan
 
     agg = agg.rename(columns={
         "n_obs": f"n_obs_{band}",
@@ -82,10 +73,8 @@ def build_per_filter_features(df: pd.DataFrame, band: str, features: pd.DataFram
 
 
 
-
 def merge_splits(train_or_test = 'train'):
 
-    # Get all unique directories
     data_paths_list = [os.path.join(main_folder, d) for d in os.listdir(main_folder) if os.path.isdir(os.path.join(main_folder, d))]
 
 
@@ -98,8 +87,6 @@ def merge_splits(train_or_test = 'train'):
         )
 
         features = pd.DataFrame({"object_id": split_lc["object_id"].unique()})
-
-        # Build features for all bands
         for b in FILTERS:
             features = build_per_filter_features(split_lc, b, features)
 

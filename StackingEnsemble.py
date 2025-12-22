@@ -153,11 +153,18 @@ class StackingEnsemble:
             print("You need to train first")
             raise ValueError
 
-        predictions = []
-        for model in self.__fitted_base_models:
-            predictions.append(model.predict(input_vector))
 
-        return self.__meta_model.predict(predictions)
+        base_probs = np.column_stack([
+            model.predict_proba(input_vector)[:, 1]
+            for model in self.__fitted_base_models.values()
+        ])
+        # predictions = []
+        # # for model in self.__fitted_base_models:
+        # for model in self.__fitted_base_models.values():
+        #     # predictions.append(model.predict_proba(input_vector))
+        #     predictions.append(model.predict_proba(input_vector)[:, 1])
+
+        return self.__meta_model.predict(base_probs)
 
     def evaluate_base_models(self):
 

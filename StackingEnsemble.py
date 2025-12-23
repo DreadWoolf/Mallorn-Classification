@@ -21,8 +21,9 @@ from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val
 from sklearn.base import clone
 import numpy as np
 import pandas as pd
-
+from joblib import dump, load
 import os
+
 # import time, multiprocessing
 
 
@@ -32,6 +33,8 @@ class StackingEnsemble:
         self.__meta_model = meta_model
         self.n_folds = n_folds
         self.__fitted_base_models = None
+        self.__trained = False
+        self.__path = "meta_data"
         
 
     def fit(self, X, y):
@@ -86,10 +89,10 @@ class StackingEnsemble:
             columns=list(self.base_models.keys())
         )
 
-        save_oof_path = "meta_data/oof_probs.csv"
-        os.makedirs(os.path.dirname(save_oof_path), exist_ok=True)
+        path = os.path.join(self.__path, "oof_probs.csv")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        oof_df.to_csv(save_oof_path, index=False)
+        oof_df.to_csv(path, index=False)
 
 
         # 4. Train meta-model on OOF
@@ -110,6 +113,11 @@ class StackingEnsemble:
             final_model.fit(X, y)
             self.__fitted_base_models[name] = final_model
             print(f"Final model trained: {name}")
+        
+
+        self.__trained = True
+
+        self.save_model()
 
 
     # def __parallelism_work(self, target:function, args:tuple):
@@ -126,7 +134,8 @@ class StackingEnsemble:
     #         j.join()
 
 
-
+    def check_trained(self):
+        return self.__trained
     # def predict_proba(self, X):
     #     # 1. Get base model probabilities
     #     # 2. Feed to meta-model
@@ -143,10 +152,25 @@ class StackingEnsemble:
 
 
     def save_model(self):
-        pass
+        path = os.path.join(self.__path, "saved_model")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dump(self, path)
+        print(f"Model saved to {path}")
 
-    def load_model(self):
-        pass
+    
+    @classmethod
+    def load_or_create(cls, path, **init_kwargs):
+        """
+        Load a fitted model from disk if it exists,
+        otherwise create a new (unfitted) instance.
+        """
+        if os.path.exists(path):
+            print(f"Loading model from {path}")
+            return load(path)
+
+        print("No saved model found. Creating new instance.")
+        return cls(**init_kwargs)
+
 
     def predict(self, input_vector):
         if self.__fitted_base_models == None:

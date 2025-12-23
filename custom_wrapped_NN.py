@@ -3,7 +3,7 @@ from scikeras.wrappers import KerasClassifier
 from keras.models import Sequential
 from keras.layers import Dense, SimpleRNN
 
-def create_nn_classifier(input_dim, numb_classifiers = 2)-> KerasClassifier:
+def create_nn_classifier(input_dim, numb_classifiers = 2, random_state = None)-> KerasClassifier:
     """
     Create a feed-forward neural network classifier wrapped in SciKeras'
     KerasClassifier.
@@ -39,8 +39,8 @@ def create_nn_classifier(input_dim, numb_classifiers = 2)-> KerasClassifier:
         epochs=100,
         batch_size=20,
         # verbose 1, will show info on each backpropagation.
-        verbose=0
-        # ,random_state = 42
+        verbose=0,
+        random_state = random_state
     )
 
 def build_model(input_dim, numb_classifiers):

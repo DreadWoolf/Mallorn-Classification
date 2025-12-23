@@ -25,7 +25,8 @@ from joblib import dump, load
 import os
 
 # import time, multiprocessing
-
+model_name = "saved_model"
+folder = "meta_data"
 
 class StackingEnsemble:
     def __init__(self, base_models, meta_model, n_folds=5):
@@ -34,7 +35,10 @@ class StackingEnsemble:
         self.n_folds = n_folds
         self.__fitted_base_models = None
         self.__trained = False
-        self.__path = "meta_data"
+        # self.__path = "meta_data"
+        # self.__model_name = "saved_model"
+        self.__path = folder
+        self.__model_name = model_name
         
 
     def fit(self, X, y):
@@ -62,7 +66,6 @@ class StackingEnsemble:
 
             X_train, X_validate = X.iloc[train_index], X.iloc[value_index]
             y_train, y_validate = y.iloc[train_index], y.iloc[value_index]
-
 
             for m, (name, model) in enumerate(self.base_models.items()):
                 # Since we did base_models, this is essential!
@@ -134,6 +137,7 @@ class StackingEnsemble:
     #         j.join()
 
 
+    @property
     def check_trained(self):
         return self.__trained
     # def predict_proba(self, X):
@@ -152,24 +156,28 @@ class StackingEnsemble:
 
 
     def save_model(self):
-        path = os.path.join(self.__path, "saved_model")
+        path = os.path.join(self.__path, self.__model_name)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         dump(self, path)
         print(f"Model saved to {path}")
 
     
+    # @property
     @classmethod
-    def load_or_create(cls, path, **init_kwargs):
+    def load_or_create(cls, name = "saved_model"): #, **init_kwargs):
         """
         Load a fitted model from disk if it exists,
         otherwise create a new (unfitted) instance.
         """
+
+        path = os.path.join(folder, name)
         if os.path.exists(path):
             print(f"Loading model from {path}")
             return load(path)
-
-        print("No saved model found. Creating new instance.")
-        return cls(**init_kwargs)
+        
+        raise FileNotFoundError
+        # print("No saved model found. Creating new instance.")
+        # return cls(**init_kwargs)
 
 
     def predict(self, input_vector):

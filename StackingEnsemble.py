@@ -44,7 +44,7 @@ class StackingEnsemble:
     def fit(self, X, y):
 
         # 1. Stratified K-fold
-        skf = StratifiedKFold(self.n_folds, shuffle=True)
+        skf = StratifiedKFold(self.n_folds, shuffle=True, random_state= 42)
         # 2. Train base models per fold
 
         # X_train, y_train, x_test, y_test = train_test_split(X, y, stratify = y)
@@ -56,6 +56,8 @@ class StackingEnsemble:
 
         # rows = samples, columns = models
         oof_preds = np.zeros((n_samples, amount_models))
+        oof_true = np.zeros(n_samples)
+
         
         for fold, (train_index, value_index) in enumerate(skf.split(X, y)):
             print(f"Fold {fold + 1}/{self.n_folds}")
@@ -74,6 +76,8 @@ class StackingEnsemble:
 
                 # store probability for class "1" (TDE)
                 oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]
+                oof_true[value_index] = y_validate.values
+
 
 
 
@@ -91,6 +95,8 @@ class StackingEnsemble:
             oof_preds,
             columns=list(self.base_models.keys())
         )
+
+        oof_df["y_true"] = oof_true
 
         path = os.path.join(self.__path, "oof_probs.csv")
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -180,8 +186,21 @@ class StackingEnsemble:
         # return cls(**init_kwargs)
 
 
+    def base_model_predict(self, input_vector) ->dict:
+        if not self.check_trained:
+            print("You need to train first")
+            raise ValueError
+
+        preds = {}
+
+        for name, model in self.__fitted_base_models.items():
+            preds[name] = model.predict(input_vector)
+
+
+        return preds
+
     def predict(self, input_vector):
-        if self.__fitted_base_models == None:
+        if not self.check_trained:
             print("You need to train first")
             raise ValueError
 

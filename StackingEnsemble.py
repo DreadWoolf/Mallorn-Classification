@@ -23,6 +23,9 @@ import numpy as np
 import pandas as pd
 from joblib import dump, load
 import os
+from scipy.stats import friedmanchisquare as friedman_test
+import scikit_posthocs as sp
+from sklearn.metrics import roc_auc_score
 
 # import time, multiprocessing
 model_name = "saved_model"
@@ -39,13 +42,15 @@ class StackingEnsemble:
         # self.__model_name = "saved_model"
         self.__path = folder
         self.__model_name = model_name
-        
+        self.__fold_scores = {}
 
     def fit(self, X, y):
 
         # 1. Stratified K-fold
         skf = StratifiedKFold(self.n_folds, shuffle=True, random_state= 42)
         # 2. Train base models per fold
+
+        self.__fold_scores = {name: [] for name in self.base_models.keys()}
 
         # X_train, y_train, x_test, y_test = train_test_split(X, y, stratify = y)
         n_samples = X.shape[0] # is this not the same as len(X)?
@@ -77,6 +82,7 @@ class StackingEnsemble:
                 # store probability for class "1" (TDE)
                 oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]
                 oof_true[value_index] = y_validate.values
+                self.__fold_scores[name].append(roc_auc_score(y_validate, model_k.predict_proba(X_validate)[:, 1]))
 
 
 
@@ -220,3 +226,34 @@ class StackingEnsemble:
     def evaluate_base_models(self):
 
         pass
+
+    def _scores_per_model(self) -> dict:
+        if not self.__fold_scores:
+            raise ValueError("No fold-scores saved.")
+
+        model_names = list(self.__fold_scores.keys())
+        return {m: self.__fold_scores[m] for m in model_names}
+
+    @property
+    def friedman(self):
+        scores_by_model = self._scores_per_model()
+
+        lengths = {len(v) for v in scores_by_model.values()}
+        if len(lengths) != 1:
+            raise ValueError(f"Different amount of fold for each model: { {k: len(v) for k,v in scores_by_model.items()} }")
+
+        stat, p = friedman_test(*scores_by_model.values())
+        return stat, p
+
+
+    @property
+    def posthoc_nemenyi(self):
+        scores_by_model = self._scores_per_model()
+        model_names = list(scores_by_model.keys())
+
+        data = np.column_stack([scores_by_model[m] for m in model_names]).astype(float)
+
+        pvals = sp.posthoc_nemenyi_friedman(data)
+        pvals.index = model_names
+        pvals.columns = model_names
+        return pvals

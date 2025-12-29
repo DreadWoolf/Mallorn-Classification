@@ -67,7 +67,11 @@ class StackingEnsemble:
         for fold, (train_index, value_index) in enumerate(skf.split(X, y)):
             print(f"Fold {fold + 1}/{self.n_folds}")
 
-            # 
+            # # 🔧 FIX: update NN input_dim dynamically
+            # if "model__input_dim" in model_k.get_params():
+            #     model_k.set_params(model__input_dim=X_train.shape[1])
+
+            #
             # X_train, X_validate = X[train_index], X[value_index]
             # y_train, y_validate = y[train_index], y[value_index]
 
@@ -75,9 +79,18 @@ class StackingEnsemble:
             y_train, y_validate = y.iloc[train_index], y.iloc[value_index]
 
             for m, (name, model) in enumerate(self.base_models.items()):
-                # Since we did base_models, this is essential!
+
+                # Since we did base_models, this is essential! (otherwise will only have the same model).
                 model_k = clone(model)
+
+                # 🔧 FIX: update NN input_dim dynamically (only if applicable)
+                params = model_k.get_params()
+                if "model__input_dim" in params:
+                    model_k.set_params(model__input_dim=X_train.shape[1])
+
+
                 model_k.fit(X_train, y_train)
+
 
                 # store probability for class "1" (TDE)
                 oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]

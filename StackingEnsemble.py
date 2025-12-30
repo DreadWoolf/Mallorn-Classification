@@ -174,6 +174,11 @@ class StackingEnsemble:
         return np.argsort(self.__fitted_base_models['rfc'].feature_importances_)
 
 
+    def __split_valid_rows(self, X):
+        valid_mask = ~X.isna().any(axis=1)
+        return valid_mask
+
+
     def predict_proba(self, X):
         if not self.check_trained:
             print("You need to train first")

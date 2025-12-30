@@ -210,6 +210,18 @@ class StackingEnsemble:
         print(f"Model saved to {path}")
 
 
+    @property
+    def name(self):
+        return self.__model_name
+
+    @name.setter
+    def set_name(self, name):
+        if len(name) > 0:
+            self.__model_name = name
+        else:
+            raise ValueError("model_name must be a non-empty string")
+
+
     def __null_meta_fallback(self, X):
         """
         Fallback ensemble using mean probability of XGB and RF

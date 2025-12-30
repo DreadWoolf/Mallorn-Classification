@@ -32,7 +32,7 @@ model_name = "saved_model"
 folder = "meta_data"
 
 class StackingEnsemble:
-    def __init__(self, base_models, meta_model, n_folds=5):
+    def __init__(self, base_models, meta_model, excluded_cols = None, n_folds=5):
         self.base_models = base_models
         self.__meta_model = meta_model
         self.n_folds = n_folds
@@ -42,9 +42,11 @@ class StackingEnsemble:
         # self.__model_name = "saved_model"
         self.__path = folder
         self.__model_name = model_name
+        self.__excluded_cols = excluded_cols
+
         self.__fold_scores = {}
 
-    def fit(self, X, y):
+    def fit(self, X, y, save = True):
 
         # 1. Stratified K-fold
         skf = StratifiedKFold(self.n_folds, shuffle=True, random_state= 42)
@@ -82,20 +84,15 @@ class StackingEnsemble:
 
                 # Since we did base_models, this is essential! (otherwise will only have the same model).
                 model_k = clone(model)
-
-                # 🔧 FIX: update NN input_dim dynamically (only if applicable)
-                params = model_k.get_params()
-                if "model__input_dim" in params:
-                    model_k.set_params(model__input_dim=X_train.shape[1])
-
-
                 model_k.fit(X_train, y_train)
 
-
                 # store probability for class "1" (TDE)
-                oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]
+                # oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]
+                oof_preds[value_index, m] = self.__get_p1_proba(model_k, X_validate)
                 oof_true[value_index] = y_validate.values
-                self.__fold_scores[name].append(roc_auc_score(y_validate, model_k.predict_proba(X_validate)[:, 1]))
+                self.__fold_scores[name].append(roc_auc_score(y_validate, self.__get_p1_proba(model_k, X_validate)))
+
+                # 
 
 
 
@@ -145,39 +142,38 @@ class StackingEnsemble:
 
         self.__trained = True
 
-        self.save_model()
-
-
-    # def __parallelism_work(self, target:function, args:tuple):
-    #     jobs = []
-    #     for model in self.base_models:
-    #         out_list = list()
-    #         # process = multiprocessing.Process(target=model.fit(X_train, y_train), args=(size, out_list))
-    #         process = multiprocessing.Process(target=model.target, args=args)
-    #         jobs.append(process)
-
-    #     for j in jobs:
-    #         j.start()
-    #     for j in jobs:
-    #         j.join()
+        if save:
+            self.save_model()
 
 
     @property
     def check_trained(self):
         return self.__trained
-    # def predict_proba(self, X):
-    #     # 1. Get base model probabilities
-    #     # 2. Feed to meta-model
-    #     # 3. Return final probabilities
-    #     pass
+    
+
+    @property
+    def get_excluded_cols(self):
+        return self.__excluded_cols
+    
+
 
     def predict_proba(self, X):
-        base_probs = np.column_stack([
-            model.predict_proba(X)[:, 1]
-            for model in self.__fitted_base_models.values()
-        ])
+        if not self.check_trained:
+            print("You need to train first")
+            raise ValueError
+        
+        try:
+            base_probs = np.column_stack([
+                # model.predict_proba(X)[:, 1]
+                self.__get_p1_proba(model, X)
+                for model in self.__fitted_base_models.values()
+            ])
 
-        return self.__meta_model.predict_proba(base_probs)
+            return self.__meta_model.predict_proba(base_probs)
+        except ValueError:
+            print("Error, can't include all, proceed with NAN safe base_models")
+            return self.__get_p1_proba(self.__fitted_base_models['xgb'], X)
+            # return self.__fitted_base_models['xgb'].predict_proba
 
 
     def save_model(self):
@@ -224,17 +220,60 @@ class StackingEnsemble:
             raise ValueError
 
 
-        base_probs = np.column_stack([
-            model.predict_proba(input_vector)[:, 1]
-            for model in self.__fitted_base_models.values()
-        ])
-        # predictions = []
-        # # for model in self.__fitted_base_models:
-        # for model in self.__fitted_base_models.values():
-        #     # predictions.append(model.predict_proba(input_vector))
-        #     predictions.append(model.predict_proba(input_vector)[:, 1])
+        try:
+            base_probs = np.column_stack([
+                self.__get_p1_proba(model, input_vector)
+                for model in self.__fitted_base_models.values()
+            ])
+            # base_probs = np.column_stack([
+            #     model.predict_proba(input_vector)[:, 1]
+            #     for model in self.__fitted_base_models.values()
+            # ])
 
-        return self.__meta_model.predict(base_probs)
+            return self.__meta_model.predict(base_probs)
+
+        except ValueError:
+                print("Error, can't include all, proceed with NAN safe base_models")
+                return self.__fitted_base_models['xgb'].predict(input_vector)
+
+    
+
+    def __get_p1_proba(self, model, X):
+        """
+        Return P(class=1) for a base model, robust to 1D/2D outputs
+        """
+        proba = model.predict_proba(X)
+
+        # Case 1: model returns class probabilities only (e.g. [p0, p1])
+        if proba.ndim == 1:
+            # If length == number of samples, we're good
+            if len(proba) == len(X):
+                return proba
+
+            # Otherwise, this is per-class output → extract P(class=1)
+            if hasattr(model, "classes_") and 1 in model.classes_:
+                idx = list(model.classes_).index(1)
+                return np.full(len(X), proba[idx])
+            else:
+                return np.zeros(len(X))
+
+        # Case 2: normal (n_samples, n_classes)
+        idx = list(model.classes_).index(1)
+        return proba[:, idx]
+    
+
+    # def __get_p1_proba(self, model, X):
+    #     """
+    #     Return P(class=1) for a base model, robust to 1D/2D outputs
+    #     """
+    #     proba = model.predict_proba(X)
+
+    #     if proba.ndim == 1:
+    #         return proba
+    #     else:
+    #         idx = list(model.classes_).index(1)
+    #         return proba[:, idx]
+
 
     def evaluate_base_models(self):
 

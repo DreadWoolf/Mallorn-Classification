@@ -32,16 +32,17 @@ model_name = "saved_model"
 folder = "meta_data"
 
 class StackingEnsemble:
-    def __init__(self, base_models, meta_model, excluded_cols = None, n_folds=5):
+    def __init__(self, base_models, meta_model, excluded_cols = None, n_folds=5, name = ""):
         self.base_models = base_models
         self.__meta_model = meta_model
         self.n_folds = n_folds
         self.__fitted_base_models = None
         self.__trained = False
-        # self.__path = "meta_data"
-        # self.__model_name = "saved_model"
         self.__path = folder
-        self.__model_name = model_name
+        if name == "":
+            self.__model_name = model_name
+        else:
+            self.__model_name = name
         self.__excluded_cols = excluded_cols
 
         self.__fold_scores = {}
@@ -156,12 +157,31 @@ class StackingEnsemble:
         return self.__excluded_cols
     
 
+    @property
+    def lest_order_feature_importances(self):
+        if not self.check_trained:
+            print("Needs to train first!")
+            raise ValueError
+        elif "rfc" not in self.__fitted_base_models.keys():
+            print("No random forrest in base models")
+            raise KeyError
+        
+        # importances =  self.__fitted_base_models['rfc'].feature_importances_
+        # indices = np.argsort(importances)
+
+        # least_important_feature = X_current.columns[indices[0]]
+        
+        return np.argsort(self.__fitted_base_models['rfc'].feature_importances_)
+
 
     def predict_proba(self, X):
         if not self.check_trained:
             print("You need to train first")
             raise ValueError
         
+        if self.__excluded_cols:
+            X = X.drop(columns=self.__excluded_cols, errors="ignore")
+
         try:
             base_probs = np.column_stack([
                 # model.predict_proba(X)[:, 1]
@@ -170,10 +190,17 @@ class StackingEnsemble:
             ])
 
             return self.__meta_model.predict_proba(base_probs)
-        except ValueError:
-            print("Error, can't include all, proceed with NAN safe base_models")
-            return self.__get_p1_proba(self.__fitted_base_models['xgb'], X)
-            # return self.__fitted_base_models['xgb'].predict_proba
+        
+        except Exception as e:
+            print(f"Meta-model failed, using null safe models as fallback ({e})")
+
+            p1 = self.__null_meta_fallback(X)
+            return np.column_stack([1 - p1, p1])
+        
+        # except ValueError:
+        #     print("Error, can't include all, proceed with NAN safe base_models")
+        #     return self.__get_p1_proba(self.__fitted_base_models['xgb'], X)
+        #     # return self.__fitted_base_models['xgb'].predict_proba
 
 
     def save_model(self):
@@ -182,23 +209,46 @@ class StackingEnsemble:
         dump(self, path)
         print(f"Model saved to {path}")
 
+
+    def __null_meta_fallback(self, X):
+        """
+        Fallback ensemble using mean probability of XGB and RF
+        """
+        required = ["xgb", "rfc"]
+        missing = [m for m in required if m not in self.__fitted_base_models]
+
+        if missing:
+            raise KeyError(f"Fallback requires models {missing}, but they are missing.")
+
+        p_xgb = self.__get_p1_proba(self.__fitted_base_models["xgb"], X)
+        p_rf  = self.__get_p1_proba(self.__fitted_base_models["rfc"], X)
+
+        p1 = 0.5 * (p_xgb + p_rf)
+
+        return p1
+
     
     # @property
     @classmethod
-    def load_or_create(cls, name = "saved_model"): #, **init_kwargs):
+    # def load_or_create(cls, name = "saved_model"): #, **init_kwargs):
+    def load_or_create(cls, name = "saved_model", **init_kwargs):
         """
         Load a fitted model from disk if it exists,
         otherwise create a new (unfitted) instance.
         """
-
         path = os.path.join(folder, name)
         if os.path.exists(path):
             print(f"Loading model from {path}")
             return load(path)
         
-        raise FileNotFoundError
-        # print("No saved model found. Creating new instance.")
-        # return cls(**init_kwargs)
+        if not init_kwargs:
+            raise FileNotFoundError(
+                f"No saved model found at {path}, and no init arguments were provided."
+            )
+        
+        print("No saved model found. Creating new instance.")
+        return cls(**init_kwargs)
+        # raise FileNotFoundError
 
 
     def base_model_predict(self, input_vector) ->dict:
@@ -206,10 +256,23 @@ class StackingEnsemble:
             print("You need to train first")
             raise ValueError
 
-        preds = {}
 
-        for name, model in self.__fitted_base_models.items():
-            preds[name] = model.predict(input_vector)
+        if self.__excluded_cols:
+            input_vector = input_vector.drop(columns=self.__excluded_cols, errors="ignore")
+
+        preds = {}
+        try:
+            for name, model in self.__fitted_base_models.items():
+                preds[name] = model.predict(input_vector)
+
+            
+        except Exception as e:
+            print(f"Meta-model failed, using null safe models as fallback ({e})")
+
+            preds = {}
+            for name in "xgb", "rfc":
+                preds[name] = self.__fitted_base_models[name].predict(input_vector)
+
 
 
         return preds
@@ -219,6 +282,8 @@ class StackingEnsemble:
             print("You need to train first")
             raise ValueError
 
+        if self.__excluded_cols:
+            input_vector = input_vector.drop(columns=self.__excluded_cols, errors="ignore")
 
         try:
             base_probs = np.column_stack([
@@ -231,10 +296,19 @@ class StackingEnsemble:
             # ])
 
             return self.__meta_model.predict(base_probs)
+        
+        except Exception as e:
+            print(f"Meta-model failed, using null safe models as fallback ({e})")
 
-        except ValueError:
-                print("Error, can't include all, proceed with NAN safe base_models")
-                return self.__fitted_base_models['xgb'].predict(input_vector)
+
+            p1 = self.__null_meta_fallback(input_vector)
+            # return np.column_stack([1 - p1, p1])
+            return (p1 >= 0.5).astype(int)
+
+
+        # except ValueError:
+        #         print("Error, can't include all, proceed with NAN safe base_models")
+        #         return self.__fitted_base_models['xgb'].predict(input_vector)
 
     
 
@@ -260,24 +334,12 @@ class StackingEnsemble:
         # Case 2: normal (n_samples, n_classes)
         idx = list(model.classes_).index(1)
         return proba[:, idx]
-    
-
-    # def __get_p1_proba(self, model, X):
-    #     """
-    #     Return P(class=1) for a base model, robust to 1D/2D outputs
-    #     """
-    #     proba = model.predict_proba(X)
-
-    #     if proba.ndim == 1:
-    #         return proba
-    #     else:
-    #         idx = list(model.classes_).index(1)
-    #         return proba[:, idx]
 
 
     def evaluate_base_models(self):
 
         pass
+
 
     def _scores_per_model(self) -> dict:
         if not self.__fold_scores:

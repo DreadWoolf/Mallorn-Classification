@@ -354,6 +354,9 @@ class StackingEnsemble:
 
 
     def _scores_per_model(self) -> dict:
+        """
+        Returns model-wise ROC-AUC scores for each fold.
+        """
         if not self.__fold_scores:
             raise ValueError("No fold-scores saved.")
 
@@ -362,8 +365,12 @@ class StackingEnsemble:
 
     @property
     def friedman(self):
+        """
+        Performs Friedman test on ROC-AUC scores for each fold.
+        """
         scores_by_model = self._scores_per_model()
 
+        # Check that all models have the same number of folds
         lengths = {len(v) for v in scores_by_model.values()}
         if len(lengths) != 1:
             raise ValueError(f"Different amount of fold for each model: { {k: len(v) for k,v in scores_by_model.items()} }")
@@ -374,9 +381,13 @@ class StackingEnsemble:
 
     @property
     def posthoc_nemenyi(self):
+        """
+        Performs a post-hoc Nemenyi test on fold-wise ROC-AUC scores.
+        """
         scores_by_model = self._scores_per_model()
         model_names = list(scores_by_model.keys())
 
+        # shape: (n_folds, n_models)
         data = np.column_stack([scores_by_model[m] for m in model_names]).astype(float)
 
         pvals = sp.posthoc_nemenyi_friedman(data)

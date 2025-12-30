@@ -54,73 +54,41 @@ def create_submissionfile(model_name = "saved_model"):
 def create_predicted_df(model_name):
     Stackingmodel = StackingEnsemble.load_or_create(model_name)
 
-
-    data_folder = "Data"
-    filename = "MALLORN-data_test.csv"
-    data_path = os.path.join(os.getcwd(), data_folder, filename)
-
-    data = pd.read_csv(data_path, sep=',')
+    data_path = os.path.join(os.getcwd(), "Data", "MALLORN-data_test.csv")
+    data = pd.read_csv(data_path)
 
     excluded_cols = Stackingmodel.get_excluded_cols
     if excluded_cols:
         excluded_cols = [c for c in excluded_cols if c != "object_id"]
         data = data.drop(columns=excluded_cols, errors="ignore")
 
-    X = data.drop(columns="object_id")
-    print(X.isna().sum().sort_values(ascending=False).head(10))
 
-    y_pred = predict(Stackingmodel, X)
+    valid_mask = ~data.isna().any(axis=1)
+    data_safe = data.loc[valid_mask]
+    data_nan  = data.loc[~valid_mask]
 
-    submission_df = pd.DataFrame({
-        "object_id": data["object_id"].values,
-        "prediction": y_pred.astype(int)
-    })
+    X_safe = data_safe.drop(columns="object_id")
+    X_nan  = data_nan.drop(columns="object_id")
+
+    print(f"Safe rows: {len(X_safe)}, NaN rows: {len(X_nan)}")
+
+    df_safe_pred = pd.DataFrame({
+        "object_id": data_safe["object_id"],
+        "prediction": predict(Stackingmodel, X_safe).astype(int)
+    }, index=data_safe.index)
+
+    df_nan_pred = pd.DataFrame({
+        "object_id": data_nan["object_id"],
+        "prediction": predict(Stackingmodel, X_nan).astype(int)
+    }, index=data_nan.index)
+
+    submission_df = (
+        pd.concat([df_safe_pred, df_nan_pred])
+        .sort_index()
+        .reset_index(drop=True)
+    )
 
     return submission_df
-
-
-
-# def create_predicted_df(model_name):
-#     Stackingmodel: StackingEnsemble = StackingEnsemble.load_or_create(model_name)
-
-#     data_folder = "Data"
-#     filename = "MALLORN-data_test.csv"
-#     data_path = os.path.join(os.path.join(os.getcwd(), data_folder), filename)
-
-    
-#     data = pd.read_csv(data_path, sep=',')
-
-#     # data.drop(columns=Stackingmodel.get_excluded_cols != "object_id", inplace=True, errors= "ignore")
-
-#     # Only drop columns the model should not see (but NOT object_id)
-#     excluded_cols = Stackingmodel.get_excluded_cols
-
-#     if excluded_cols != None:
-#         excluded_cols = [c for c in excluded_cols if c != "object_id"]
-#         data = data.drop(columns=excluded_cols, errors="ignore")
-
-#     print(excluded_cols)
-
-#     submisson_df = pd.DataFrame(columns= ("object_id", "prediction"))
-
-#     # print(data.head(4))
-#     for i in range(len(data)):
-#         vector = data.iloc[[i]]   # already a DataFrame
-#         # print(vector, end="\n\n\n")
-#         object_id = vector["object_id"].iloc[0]
-#         y_pred = predict(Stackingmodel, input_vector=vector.drop(columns="object_id"))
-#         # print(y_pred)
-
-#         # submisson_df.merge(vector["object_id"], y_pred)
-#         submisson_df.loc[len(submisson_df)] = {
-#             # "object_id": vector["object_id"].values[0],
-#             "object_id": object_id,
-#             "prediction": int(y_pred[0])
-#         }
-    
-#     return submisson_df
-
-
     
 
 

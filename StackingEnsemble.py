@@ -17,7 +17,7 @@
 #7 Retrain each base model on the full Train/Dev set (not the full dataset including test).
 #8 Use retrained base models + meta-model to predict on the held-out test set.
 
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
+from sklearn.model_selection import StratifiedKFold
 from sklearn.base import clone
 import numpy as np
 import pandas as pd
@@ -28,7 +28,7 @@ import scikit_posthocs as sp
 from sklearn.metrics import roc_auc_score
 
 # import time, multiprocessing
-model_name = "saved_model"
+model_name = "full_model"
 folder = "meta_data"
 
 class StackingEnsemble:
@@ -70,14 +70,6 @@ class StackingEnsemble:
         for fold, (train_index, value_index) in enumerate(skf.split(X, y)):
             print(f"Fold {fold + 1}/{self.n_folds}")
 
-            # # 🔧 FIX: update NN input_dim dynamically
-            # if "model__input_dim" in model_k.get_params():
-            #     model_k.set_params(model__input_dim=X_train.shape[1])
-
-            #
-            # X_train, X_validate = X[train_index], X[value_index]
-            # y_train, y_validate = y[train_index], y[value_index]
-
             X_train, X_validate = X.iloc[train_index], X.iloc[value_index]
             y_train, y_validate = y.iloc[train_index], y.iloc[value_index]
 
@@ -93,19 +85,7 @@ class StackingEnsemble:
                 oof_true[value_index] = y_validate.values
                 self.__fold_scores[name].append(roc_auc_score(y_validate, self.__get_p1_proba(model_k, X_validate)))
 
-                # 
 
-
-
-
-        # 3. Store OOF predictions
-
-        # save_oof_path="meta_data/oof_probs.csv"
-        # # Make directory if needed
-        # os.makedirs(os.path.dirname(save_oof_path), exist_ok=True)
-
-        # # Option A: Save only the OOF matrix (NumPy)
-        # np.savetxt(save_oof_path, oof_preds, delimiter=",", fmt="%.6f")
 
         
         oof_df = pd.DataFrame(
@@ -143,6 +123,10 @@ class StackingEnsemble:
 
         self.__trained = True
 
+        self._oof_preds = oof_preds
+        self._oof_true = oof_true
+
+
         if save:
             self.save_model()
 
@@ -172,11 +156,6 @@ class StackingEnsemble:
         # least_important_feature = X_current.columns[indices[0]]
         
         return np.argsort(self.__fitted_base_models['rfc'].feature_importances_)
-
-
-    def __split_valid_rows(self, X):
-        valid_mask = ~X.isna().any(axis=1)
-        return valid_mask
 
 
     def predict_proba(self, X):
@@ -245,10 +224,9 @@ class StackingEnsemble:
         return p1
 
     
-    # @property
     @classmethod
     # def load_or_create(cls, name = "saved_model"): #, **init_kwargs):
-    def load_or_create(cls, name = "saved_model", **init_kwargs):
+    def load_or_create(cls, name = "full_model", **init_kwargs):
         """
         Load a fitted model from disk if it exists,
         otherwise create a new (unfitted) instance.
@@ -290,9 +268,8 @@ class StackingEnsemble:
             for name in "xgb", "rfc":
                 preds[name] = self.__fitted_base_models[name].predict(input_vector)
 
-
-
         return preds
+
 
     def predict(self, input_vector):
         if not self.check_trained:
@@ -320,12 +297,7 @@ class StackingEnsemble:
 
             p1 = self.__null_meta_fallback(input_vector)
             # return np.column_stack([1 - p1, p1])
-            return (p1 >= 0.5).astype(int)
-
-
-        # except ValueError:
-        #         print("Error, can't include all, proceed with NAN safe base_models")
-        #         return self.__fitted_base_models['xgb'].predict(input_vector)
+            return (p1 >= 0.7).astype(int)
 
     
 
@@ -353,9 +325,22 @@ class StackingEnsemble:
         return proba[:, idx]
 
 
-    def evaluate_base_models(self):
+    def evaluate_base_models(self) -> pd.DataFrame:
+        """
+        Evaluate base model complementarity using OOF predicted probabilities.
+        Returns the correlation matrix of probability outputs.
+        """
+        if not hasattr(self, "_oof_preds"):
+            raise ValueError("OOF predictions not found. Train the model first.")
 
-        pass
+        corr = np.corrcoef(self._oof_preds.T)
+
+        return pd.DataFrame(
+            corr,
+            index=self.base_models.keys(),
+            columns=self.base_models.keys()
+        )
+
 
 
     def _scores_per_model(self) -> dict:

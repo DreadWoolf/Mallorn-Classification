@@ -3,27 +3,14 @@ import numpy as np
 from StackingEnsemble import StackingEnsemble
 import os
 
-
-
-
-
-main_folder = "mallorn-astronomical-classification-challenge"
-data_folder = "Data"
-data_path = os.path.join(os.getcwd(), data_folder)
-
-# pathos = "year3/Machine_Learning/Final_project"
-
-# path = os.path.join(os.getcwd(), pathos)
-# path = os.path.join(path, main_folder)
-
-path = os.path.join(os.getcwd(), main_folder)
+path = os.getcwd()
 
 def create_submissionfile(model_name = "saved_model"):
     # Create the dataframe with predictions
     submission_df = create_predicted_df(model_name)
 
     # Define submission folder
-    submission_folder = os.path.join(os.getcwd(), "submission_files")
+    submission_folder = os.path.join(path, "submission_files")
 
     # Create folder if it does not exist
     os.makedirs(submission_folder, exist_ok=True)
@@ -54,7 +41,9 @@ def create_submissionfile(model_name = "saved_model"):
 def create_predicted_df(model_name):
     Stackingmodel = StackingEnsemble.load_or_create(model_name)
 
-    data_path = os.path.join(os.getcwd(), "Data", "MALLORN-data_test.csv")
+    # data_path = os.path.join(os.getcwd(), "Data", "MALLORN-data_test.csv")
+    data_path = os.path.join(path, "Data", "MALLORN-data_test.csv")
+    print(data_path)
     data = pd.read_csv(data_path)
 
     excluded_cols = Stackingmodel.get_excluded_cols
@@ -101,32 +90,36 @@ def predict(Stackingmodel: StackingEnsemble, input_vector):
     z_error = input_vector["Z_err"]
     v_no_error = input_vector.drop(columns=["Z_err"]).copy()
 
+
     v_z_err_sub = v_no_error.copy()
     v_z_err_add = v_no_error.copy()
 
-    # v_z_err_sub["z"] = max(0, input_vector["z"] - z_error)
-    # v_z_err_add["z"] = input_vector["z"] + z_error
 
     v_z_err_sub["Z"] = np.maximum(0.0, v_no_error["Z"] - z_error)
     v_z_err_add["Z"] = v_no_error["Z"] + z_error
 
 
-    y_sub = Stackingmodel.predict(v_z_err_sub)
-    y_nom = Stackingmodel.predict(v_no_error)
-    y_add = Stackingmodel.predict(v_z_err_add)
+    # y_sub = Stackingmodel.predict(v_z_err_sub)
+    # y_nom = Stackingmodel.predict(v_no_error)
+    # y_add = Stackingmodel.predict(v_z_err_add)
+
+    # votes = y_sub + y_nom + y_add
+    # y_final = (votes >= 2).astype(int)
+
+    # return y_final
+
+
+    y_sub = Stackingmodel.predict_proba(v_z_err_sub)
+    y_nom = Stackingmodel.predict_proba(v_no_error)
+    y_add = Stackingmodel.predict_proba(v_z_err_add)
 
     votes = y_sub + y_nom + y_add
-    y_final = (votes >= 2).astype(int)
-
+    y_final = (votes[:, 1] / 3 >= 0.5).astype(int)
     return y_final
 
 
-
-
-
-
 if __name__ == "__main__":
-
     print(os.getcwd())
-
-    create_submissionfile()
+    path = os.path.join(os.path.dirname(__file__))
+    print(path)
+    create_submissionfile(model_name= 'test')

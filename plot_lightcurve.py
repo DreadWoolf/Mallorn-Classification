@@ -2,6 +2,10 @@ from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
 import numpy as np
 
+#############################################
+#   Provided by competiton but modified     #
+#############################################
+
 def plot_lightcurve(object_ID, df, log_df):
     #Setting filter colours for later plotting
     filter_colours = {'u': '#6A5ACD', 'g': '#2ca02c', 'r': '#d62728', 'i': '#ff7f0e', 'z': '#8c564b', 'y': '#1b1b1b'}
@@ -79,5 +83,6 @@ def plot_lightcurve(object_ID, df, log_df):
     plt.errorbar(y_time,y_flux,yerr = y_err, label='y', fmt = '.', color = filter_colours['y'],zorder=1)
     plt.xlabel('Days (MJD)')
     plt.ylabel('Flux (μJy)')
+    plt.title(f"Light curve of object {object_ID} in multiple photometric filters")
     plt.legend()
     plt.show()

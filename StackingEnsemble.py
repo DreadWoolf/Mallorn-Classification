@@ -1,22 +1,3 @@
-
-# Do a meta logistic regression model.
-# Even though the labels are binary, we stack using predicted probabilities; 
-# the logistic meta-model learns how to weight and combine confidence scores rather than hard votes.
-# “Because TDEs are rare, we do not use the default 0.5 decision threshold.
-#  Instead, we select the probability cutoff that achieves 90% completeness on the validation set and report the resulting purity on the test set.”
-
-#  Stratified k-fold with 5
-
-# Workflow guide...
-#1 Use stratified split to create a held-out test set (do this first).
-#2 Use stratified K-fold on the remaining Train/Dev set.
-#3 For each fold: train base models on K−1 folds.
-#4 Validate on the held-out fold and store probabilities (OOF).
-#5 Repeat for all folds to fill OOF probabilities for every train/dev sample.
-#6 Train the meta-model on the OOF probability matrix.
-#7 Retrain each base model on the full Train/Dev set (not the full dataset including test).
-#8 Use retrained base models + meta-model to predict on the held-out test set.
-
 from sklearn.model_selection import StratifiedKFold
 from sklearn.base import clone
 import numpy as np
@@ -26,8 +7,8 @@ import os
 from scipy.stats import friedmanchisquare as friedman_test
 import scikit_posthocs as sp
 from sklearn.metrics import roc_auc_score
-
 # import time, multiprocessing
+
 model_name = "full_model"
 folder = "meta_data"
 
@@ -103,13 +84,6 @@ class StackingEnsemble:
 
         # 4. Train meta-model on OOF
         self.__meta_model.fit(oof_preds, y)
-
-
-        # 5. Retrain base models on full train/dev
-        # for i, model in enumerate(self.base_models):
-        #     self.base_models[model].fit(X, y)
-        #     print(f"Model {i + 1}/{amount_models}: {model} finished training!")
-
 
         # 5. Retrain base models on full train/dev
         self.__fitted_base_models = {}

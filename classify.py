@@ -43,7 +43,6 @@ def create_predicted_df(model_name):
 
     # data_path = os.path.join(os.getcwd(), "Data", "MALLORN-data_test.csv")
     data_path = os.path.join(path, "Data", "MALLORN-data_test.csv")
-    print(data_path)
     data = pd.read_csv(data_path)
 
     excluded_cols = Stackingmodel.get_excluded_cols

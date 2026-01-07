@@ -13,7 +13,18 @@ model_name = "full_model"
 folder = "meta_data"
 
 class StackingEnsemble:
+    """
+    Stacking ensemble classifier that trains base models with stratified cross-validation
+    to produce out-of-fold (OOF) probabilities, then trains a meta-model on those OOF probabilities.
+    """
     def __init__(self, base_models, meta_model, excluded_cols = None, n_folds=5, name = ""):
+        """
+        :param base_models: A dictonary of base models.
+        :param meta_model: model classifier, example logistic regression
+        :param excluded_cols: Columns that should be dropped if present.
+        :param n_folds: How many stratified folds, deafult 5.
+        :param name: Name of the model
+        """
         self.base_models = base_models
         self.__meta_model = meta_model
         self.n_folds = n_folds
@@ -29,17 +40,18 @@ class StackingEnsemble:
         self.__fold_scores = {}
 
     def fit(self, X, y, save = True):
+        """
+        :param X: Description
+        :param y: Description
+        :param save: Will save the model
+        """
 
-        # 1. Stratified K-fold
         skf = StratifiedKFold(self.n_folds, shuffle=True, random_state= 42)
-        # 2. Train base models per fold
 
+        # Train base models per fold
         self.__fold_scores = {name: [] for name in self.base_models.keys()}
 
-        # X_train, y_train, x_test, y_test = train_test_split(X, y, stratify = y)
-        n_samples = X.shape[0] # is this not the same as len(X)?
-
-        # amount_models = len(self.base_models.keys())
+        n_samples = X.shape[0]
         amount_models = len(self.base_models)
 
 
@@ -47,7 +59,7 @@ class StackingEnsemble:
         oof_preds = np.zeros((n_samples, amount_models))
         oof_true = np.zeros(n_samples)
 
-        
+        # Train all base models on one fold, validate with another, store result in OOF.
         for fold, (train_index, value_index) in enumerate(skf.split(X, y)):
             print(f"Fold {fold + 1}/{self.n_folds}")
 
@@ -56,19 +68,19 @@ class StackingEnsemble:
 
             for m, (name, model) in enumerate(self.base_models.items()):
 
-                # Since we did base_models, this is essential! (otherwise will only have the same model).
+                # Since we did base_models, this is essential!
+                # (otherwise will not uppdate to new model).
                 model_k = clone(model)
                 model_k.fit(X_train, y_train)
 
                 # store probability for class "1" (TDE)
-                # oof_preds[value_index, m] = model_k.predict_proba(X_validate)[:, 1]
                 oof_preds[value_index, m] = self.__get_p1_proba(model_k, X_validate)
                 oof_true[value_index] = y_validate.values
                 self.__fold_scores[name].append(roc_auc_score(y_validate, self.__get_p1_proba(model_k, X_validate)))
 
 
 
-        
+        # Create a dataframe out of OOF and then store this, for inspections.
         oof_df = pd.DataFrame(
             oof_preds,
             columns=list(self.base_models.keys())
@@ -82,10 +94,10 @@ class StackingEnsemble:
         oof_df.to_csv(path, index=False)
 
 
-        # 4. Train meta-model on OOF
+        # Train meta-model on OOF.
         self.__meta_model.fit(oof_preds, y)
 
-        # 5. Retrain base models on full train/dev
+        # Retrain base models on full train/dev
         self.__fitted_base_models = {}
 
         for name, model in self.base_models.items():
@@ -124,11 +136,6 @@ class StackingEnsemble:
             print("No random forrest in base models")
             raise KeyError
         
-        # importances =  self.__fitted_base_models['rfc'].feature_importances_
-        # indices = np.argsort(importances)
-
-        # least_important_feature = X_current.columns[indices[0]]
-        
         return np.argsort(self.__fitted_base_models['rfc'].feature_importances_)
 
 
@@ -155,11 +162,6 @@ class StackingEnsemble:
             p1 = self.__null_meta_fallback(X)
             return np.column_stack([1 - p1, p1])
         
-        # except ValueError:
-        #     print("Error, can't include all, proceed with NAN safe base_models")
-        #     return self.__get_p1_proba(self.__fitted_base_models['xgb'], X)
-        #     # return self.__fitted_base_models['xgb'].predict_proba
-
 
     def save_model(self):
         path = os.path.join(self.__path, self.__model_name)
@@ -168,6 +170,9 @@ class StackingEnsemble:
         print(f"Model saved to {path}")
 
 
+#####################################
+#       get & set name of model     #
+#####################################
     @property
     def name(self):
         return self.__model_name
@@ -199,7 +204,6 @@ class StackingEnsemble:
 
     
     @classmethod
-    # def load_or_create(cls, name = "saved_model"): #, **init_kwargs):
     def load_or_create(cls, name = "full_model", **init_kwargs):
         """
         Load a fitted model from disk if it exists,
@@ -217,7 +221,6 @@ class StackingEnsemble:
         
         print("No saved model found. Creating new instance.")
         return cls(**init_kwargs)
-        # raise FileNotFoundError
 
 
     def base_model_predict(self, input_vector) ->dict:
@@ -258,10 +261,6 @@ class StackingEnsemble:
                 self.__get_p1_proba(model, input_vector)
                 for model in self.__fitted_base_models.values()
             ])
-            # base_probs = np.column_stack([
-            #     model.predict_proba(input_vector)[:, 1]
-            #     for model in self.__fitted_base_models.values()
-            # ])
 
             return self.__meta_model.predict(base_probs)
         
@@ -270,7 +269,6 @@ class StackingEnsemble:
 
 
             p1 = self.__null_meta_fallback(input_vector)
-            # return np.column_stack([1 - p1, p1])
             return (p1 >= 0.7).astype(int)
 
     
@@ -287,7 +285,7 @@ class StackingEnsemble:
             if len(proba) == len(X):
                 return proba
 
-            # Otherwise, this is per-class output → extract P(class=1)
+            # Otherwise, this is per-class output => extract P(class=1)
             if hasattr(model, "classes_") and 1 in model.classes_:
                 idx = list(model.classes_).index(1)
                 return np.full(len(X), proba[idx])

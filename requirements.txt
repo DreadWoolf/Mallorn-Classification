@@ -1,0 +1,15 @@
+numpy
+pandas
+scipy
+scikit-learn
+scikeras
+tensorflow
+seaborn
+keras
+xgboost
+joblib
+scikit-posthocs
+matplotlib
+extinction
+notebook
+ipywidgets

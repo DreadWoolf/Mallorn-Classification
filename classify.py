@@ -97,17 +97,6 @@ def predict(Stackingmodel: StackingEnsemble, input_vector):
     v_z_err_sub["Z"] = np.maximum(0.0, v_no_error["Z"] - z_error)
     v_z_err_add["Z"] = v_no_error["Z"] + z_error
 
-
-    # y_sub = Stackingmodel.predict(v_z_err_sub)
-    # y_nom = Stackingmodel.predict(v_no_error)
-    # y_add = Stackingmodel.predict(v_z_err_add)
-
-    # votes = y_sub + y_nom + y_add
-    # y_final = (votes >= 2).astype(int)
-
-    # return y_final
-
-
     y_sub = Stackingmodel.predict_proba(v_z_err_sub)
     y_nom = Stackingmodel.predict_proba(v_no_error)
     y_add = Stackingmodel.predict_proba(v_z_err_add)

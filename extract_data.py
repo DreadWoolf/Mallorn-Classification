@@ -97,10 +97,8 @@ def build_per_filter_features(df: pd.DataFrame, filter_type: str, features: pd.D
 
 
 
-
 def merge_splits(train_or_test = 'train'):
 
-    # Get all unique directories
     data_paths_list = [os.path.join(main_folder, d) for d in os.listdir(main_folder) if os.path.isdir(os.path.join(main_folder, d))]
 
 
@@ -113,8 +111,6 @@ def merge_splits(train_or_test = 'train'):
         )
 
         features = pd.DataFrame({"object_id": split_lc["object_id"].unique()})
-
-        # Build features for all bands
         for b in FILTERS:
             features = build_per_filter_features(split_lc, b, features)
 

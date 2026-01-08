@@ -25,17 +25,20 @@ To address these challenges, a **stacked ensemble learning approach** with heter
 
 ## Repository Structure
 
+
+```text
 .
-├── data.ipynb # Main notebook (EDA, modeling, evaluation)
-├── extract_data.py # Feature extraction from light curves
-├── plot_lightcurve.py # Light-curve visualization
-├── StackingEnsemble.py # Custom stacking ensemble implementation
-├── custom_wrapped_NN.py # Shallow neural network wrapper
-├── classify.py # Model training and evaluation
-├── create_submission.ipynb # Kaggle submission pipeline
-├── requirements.txt # Python dependencies
-├── meta_data/ # Saved models and OOF predictions
-└── submission_files/ # Generated submission CSVs
+├── data.ipynb                  # Main notebook (EDA, modeling, evaluation)
+├── extract_data.py              # Feature extraction from light curves
+├── plot_lightcurve.py           # Light-curve visualization
+├── StackingEnsemble.py          # Custom stacking ensemble implementation
+├── custom_wrapped_NN.py         # Shallow neural network wrapper
+├── classify.py                  # Model training and evaluation
+├── create_submission.ipynb      # Kaggle submission pipeline
+├── requirements.txt             # Python dependencies
+├── meta_data/                   # Saved models and OOF predictions
+└── submission_files/            # Generated submission CSVs
+```
 
 ---
 

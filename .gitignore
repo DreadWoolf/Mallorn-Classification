@@ -3,3 +3,5 @@ mallorn-astronomical-classification-challenge/
 __pycache__/
 *.pyc
 submission_files/
+wrapped_RNN_Elman.py
+readme.txt

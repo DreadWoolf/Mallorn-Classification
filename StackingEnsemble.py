@@ -16,6 +16,9 @@ class StackingEnsemble:
     """
     Stacking ensemble classifier that trains base models with stratified cross-validation
     to produce out-of-fold (OOF) probabilities, then trains a meta-model on those OOF probabilities.
+
+    This implementation is designed to evaluate model complementarity, avoid data leakage,
+    and support statistical comparison of base learners.
     """
     def __init__(self, base_models, meta_model, excluded_cols = None, n_folds=5, name = ""):
         """
@@ -41,9 +44,22 @@ class StackingEnsemble:
 
     def fit(self, X, y, save = True):
         """
-        :param X: Description
-        :param y: Description
-        :param save: Will save the model
+        Train the stacking ensemble.
+
+        The procedure consists of three stages:
+        1) Train each base model using stratified K-fold cross-validation and collect
+        out-of-fold (OOF) predicted probabilities.
+        2) Train the meta-model on the OOF predictions to avoid information leakage.
+        3) Retrain all base models on the full training set for inference.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix.
+        y : pd.Series
+            Binary target labels.
+        save : bool, optional
+            Whether to persist the trained ensemble to disk.
         """
 
         skf = StratifiedKFold(self.n_folds, shuffle=True, random_state= 42)
@@ -140,6 +156,19 @@ class StackingEnsemble:
 
 
     def predict_proba(self, X):
+        """
+        Predict class probabilities using the stacking ensemble.
+
+        Base models first generate probability estimates, which are combined
+        and passed to the meta-model to produce final predictions.
+
+        If one or more base models fail to produce valid outputs (e.g., due to missing
+        values or numerical issues), this propagates to the meta-model stage and
+        prevents standard stacking. In such cases, a fallback soft-voting strategy is
+        used, averaging probabilities from a subset of robust base models to ensure
+        stable inference.
+        """
+
         if not self.check_trained:
             print("You need to train first")
             raise ValueError
@@ -149,7 +178,6 @@ class StackingEnsemble:
 
         try:
             base_probs = np.column_stack([
-                # model.predict_proba(X)[:, 1]
                 self.__get_p1_proba(model, X)
                 for model in self.__fitted_base_models.values()
             ])
@@ -224,6 +252,9 @@ class StackingEnsemble:
 
 
     def base_model_predict(self, input_vector) ->dict:
+        """
+        Make predictions for each base model and returns the results in a dict.
+        """
         if not self.check_trained:
             print("You need to train first")
             raise ValueError
@@ -249,6 +280,19 @@ class StackingEnsemble:
 
 
     def predict(self, input_vector):
+        """
+        Predict binary class labels using the stacking ensemble.
+
+        Base models first generate class probability estimates, which are combined
+        and passed to the meta-model to obtain the final class prediction.
+
+        If one or more base models fail to produce valid outputs (for example due to
+        missing values or numerical issues), this will propagates to the meta-model
+        stage and prevents standard stacking. In such cases, a fallback strategy
+        is applied in which predictions are obtained by soft voting over a subset
+        of robust base models, followed by thresholding on the aggregated
+        probability.
+        """
         if not self.check_trained:
             print("You need to train first")
             raise ValueError

@@ -6,6 +6,23 @@ import os
 path = os.getcwd()
 
 def create_submissionfile(model_name = "saved_model"):
+    """
+    Generate and save a Kaggle-compatible submission file.
+
+    This function loads a trained stacking ensemble model, generates predictions
+    for the test dataset, and stores the results as a uniquely numbered CSV file
+    in the 'submission_files' directory.
+
+    Parameters
+    ----------
+    model_name : str, optional
+        Name of the saved stacking ensemble model to load.
+
+    Returns
+    -------
+    pd.DataFrame
+        Submission dataframe containing object IDs and predicted class labels.
+    """
     # Create the dataframe with predictions
     submission_df = create_predicted_df(model_name)
 
@@ -39,6 +56,23 @@ def create_submissionfile(model_name = "saved_model"):
 
 
 def create_predicted_df(model_name):
+    """
+    Create a dataframe of predictions for the Kaggle test dataset.
+
+    The function loads the trained stacking ensemble, applies necessary
+    preprocessing, handles missing values, and generates predictions
+    while preserving object ordering.
+
+    Parameters
+    ----------
+    model_name : str
+        Name of the saved stacking ensemble model.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing object IDs and predicted labels.
+    """
     Stackingmodel = StackingEnsemble.load_or_create(model_name)
 
     # data_path = os.path.join(os.getcwd(), "Data", "MALLORN-data_test.csv")
@@ -82,7 +116,25 @@ def create_predicted_df(model_name):
 
 
 def predict(Stackingmodel: StackingEnsemble, input_vector):
+    """
+    Generate predictions using a trained stacking ensemble model.
 
+    If redshift uncertainty (Z_err) is present, predictions are computed
+    using perturbed redshift values (Z - Z_err, Z, Z + Z_err) and combined
+    via soft voting. Otherwise, standard prediction is performed.
+
+    Parameters
+    ----------
+    Stackingmodel : StackingEnsemble
+        Trained stacking ensemble model.
+    input_vector : pd.DataFrame
+        Feature matrix for prediction.
+
+    Returns
+    -------
+    np.ndarray
+        Binary predictions for each input sample.
+    """
     if "Z_err" not in input_vector.columns:
         return Stackingmodel.predict(input_vector)
 

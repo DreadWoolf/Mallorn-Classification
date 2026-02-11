@@ -1,7 +1,13 @@
 Data/
 mallorn-astronomical-classification-challenge/
-__pycache__/
-*.pyc
 submission_files/
+meta_data/
 wrapped_RNN_Elman.py
 readme.txt
+oof_probs.csv
+meta_data/*.csv
+
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

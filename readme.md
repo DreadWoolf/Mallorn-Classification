@@ -42,6 +42,15 @@ To address these challenges, a **stacked ensemble learning approach** with heter
 
 ---
 
+## Dataset Availability
+
+Due to Kaggle licensing restrictions, the **MALLORN Astronomical Classification Challenge dataset is not included** in this repository.
+
+The repository contains the full feature extraction, modeling, and evaluation pipeline, but users must obtain the dataset directly from Kaggle to reproduce the results.
+
+
+---
+
 
 ## Method Summary
 

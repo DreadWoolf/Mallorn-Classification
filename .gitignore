@@ -1,7 +1,6 @@
-Data/
-mallorn-astronomical-classification-challenge/
-submission_files/
-meta_data/
+Data/*
+mallorn-astronomical-classification-challenge/*
+submission_files/*
 wrapped_RNN_Elman.py
 readme.txt
 oof_probs.csv

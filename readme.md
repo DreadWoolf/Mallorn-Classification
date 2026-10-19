@@ -108,8 +108,8 @@ The notebook contains:
 This repository accompanies a **3–5 page IEEE-style report** submitted for:
 
 **Machine Learning (DV2638)**  
-M.Sc. in AI & Machine Learning  
-Blekinge Institute of Technology
+Master of Science in Engineering: AI and Machine Learning
+Blekinge Institute of Technology (BTH)
 
 All design choices are motivated, evaluated, and statistically validated in the report and notebook.
 
@@ -117,7 +117,7 @@ All design choices are motivated, evaluated, and statistically validated in the 
 
 ## Authors
 **Rasmus Eliasson**  
-M.Sc. AI & Machine Learning, BTH
+M.Sc. Eng. Student – AI and Machine Learning  , BTH
 
 **Oskar Flodin**  
-M.Sc. AI & Machine Learning, BTH
+M.Sc. Eng. Student – AI and Machine Learning  , BTH
